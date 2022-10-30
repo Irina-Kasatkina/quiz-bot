@@ -23,14 +23,13 @@ def generate_tasks_from_texts(texts):
     """Формирует словарь из заданных текстов с вопросами викторины."""
 
     Task = namedtuple('Task', 'question answer')
-    task_question = task_answer = ''
+    task_question = ''
     question_search = True
 
     tasks = []
     for text in texts:
         if text.startswith(('Вопрос', 'вопрос', 'ВОПРОС')):
             task_question = ' '.join(text.split('\n')[1:])
-            task_answer = ''
             question_search = False
         elif text.startswith(('Ответ', 'ответ', 'ОТВЕТ')):
             if not question_search:
@@ -38,7 +37,7 @@ def generate_tasks_from_texts(texts):
                 if task_question and task_answer:
                     tasks.append(Task(task_question, task_answer))
 
-            task_question = task_answer = ''
+            task_question = ''
             question_search = True
     return tasks
 

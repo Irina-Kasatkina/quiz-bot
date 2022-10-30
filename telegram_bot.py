@@ -9,8 +9,8 @@ from functools import partial
 
 import redis
 from dotenv import load_dotenv
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import (CallbackContext, CallbackQueryHandler, CommandHandler, ConversationHandler,
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove
+from telegram.ext import (CallbackQueryHandler, CommandHandler, ConversationHandler,
                           Filters, MessageHandler, Updater)
 
 from config_parser import create_parser
@@ -106,7 +106,7 @@ def handle_capitulation_request(update, context, tasks, redis_client):
             chat_id=chat_id,
             text=tasks[int(task_index)].answer
         )
-    return handle_new_question_request(update, context, redis_client)
+    return handle_new_question_request(update, context, tasks, redis_client)
 
 
 def handle_solution_attempt(update, context, tasks, redis_client):
