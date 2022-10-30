@@ -1,6 +1,6 @@
 # coding=utf-8
 
-"""Организует викторину в VK-чате."""
+"""Запускает и организует викторину в VK-чате."""
 
 import logging
 import os
@@ -12,6 +12,7 @@ from vk_api import VkApi
 from vk_api.keyboard import VkKeyboard, VkKeyboardColor
 from vk_api.longpoll import VkLongPoll, VkEventType
 
+from config_parser import create_parser
 from telegram_log_handler import TelegramLogsHandler
 from quiz_tasks import generate_tasks_from_files, get_answer_comment
 
@@ -19,7 +20,7 @@ from quiz_tasks import generate_tasks_from_files, get_answer_comment
 logger = logging.getLogger('support_bot.logger')
 
 
-def run_vk_bot(vk_group_token, redis_client):
+def run_vk_bot(vk_group_token, tasks, redis_client):
     """Запускает vk-бота и организует его работу."""
 
     try:
@@ -29,24 +30,24 @@ def run_vk_bot(vk_group_token, redis_client):
 
         for event in longpoll.listen():
             if event.type == VkEventType.MESSAGE_NEW and event.to_me:
-                handle_event(event, vk_api, redis_client)
+                handle_event(event, vk_api, tasks, redis_client)
     except Exception as error:
         logger.exception(f'Ошибка {error} в vk-боте.')
 
 
-def handle_event(event, vk_api, redis_client):
+def handle_event(event, vk_api, tasks, redis_client):
     """Отвечает в чате VK на сообщение пользователя."""
 
     if event.text.endswith('Новый вопрос'):
-        return handle_new_question_request(event, vk_api, redis_client)
+        return handle_new_question_request(event, vk_api, tasks, redis_client)
 
     if event.text.endswith('Сдаться'):
-        return handle_capitulation_request(event, vk_api, redis_client)
+        return handle_capitulation_request(event, vk_api, tasks, redis_client)
 
-    return handle_solution_attempt(event, vk_api, redis_client)
+    return handle_solution_attempt(event, vk_api, tasks, redis_client)
 
 
-def handle_new_question_request(event, vk_api, redis_client):
+def handle_new_question_request(event, vk_api, tasks, redis_client):
     """Отвечает в vk-чате на нажатие пользователем кнопки «Новый вопрос»."""
 
     peer_id = event.peer_id
@@ -59,7 +60,7 @@ def handle_new_question_request(event, vk_api, redis_client):
     redis_client.set(peer_id, task_index)
 
 
-def handle_capitulation_request(event, vk_api, redis_client):
+def handle_capitulation_request(event, vk_api, tasks, redis_client):
     """Отвечает в vk-чате на нажатие пользователем кнопки «Сдаться»."""
 
     peer_id = event.peer_id
@@ -70,10 +71,10 @@ def handle_capitulation_request(event, vk_api, redis_client):
             message=tasks[int(task_index)].answer,
             random_id=random.randint(1, 1000)
         )
-    return handle_new_question_request(event, vk_api, redis_client)
+    return handle_new_question_request(event, vk_api, tasks, redis_client)
 
 
-def handle_solution_attempt(event, vk_api, redis_client):
+def handle_solution_attempt(event, vk_api, tasks, redis_client):
     """Отвечает в telegram-чате на сообщение пользователя."""
 
     peer_id = event.peer_id
@@ -108,6 +109,9 @@ def get_keyboard():
 def main():
     """Запускает vk-бота, организующего викторину."""
 
+    options = create_parser('Запускает и организует викторину в VK-чате.').parse_args()
+    tasks = generate_tasks_from_files(options.quiz_folder)
+
     load_dotenv()
     tg_bot_token = os.environ['TELEGRAM_BOT_TOKEN']
     tg_moderator_chat_id = os.environ['TELEGRAM_MODERATOR_CHAT_ID']
@@ -123,9 +127,8 @@ def main():
         decode_responses=True
     )
 
-    run_vk_bot(os.environ['VK_GROUP_TOKEN'], redis_client)
+    run_vk_bot(os.environ['VK_GROUP_TOKEN'], tasks, redis_client)
 
 
 if __name__ == '__main__':
-    tasks = generate_tasks_from_files()
     main()

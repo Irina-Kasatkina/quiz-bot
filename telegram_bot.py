@@ -1,6 +1,6 @@
 # coding=utf-8
 
-"""Организует викторину в telegram-чате."""
+"""Запускает и организует викторину в telegram-чате."""
 
 import logging
 import os
@@ -13,8 +13,9 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (CallbackContext, CallbackQueryHandler, CommandHandler, ConversationHandler,
                           Filters, MessageHandler, Updater)
 
-from telegram_log_handler import TelegramLogsHandler
+from config_parser import create_parser
 from quiz_tasks import generate_tasks_from_files, get_answer_comment
+from telegram_log_handler import TelegramLogsHandler
 
 
 KEYBOARD, ANSWER = range(2)
@@ -23,7 +24,7 @@ KEYBOARD, ANSWER = range(2)
 logger = logging.getLogger('quiz_bot.logger')
 
 
-def run_telegram_bot(tg_bot_token, redis_client):
+def run_telegram_bot(tg_bot_token, tasks, redis_client):
     """Запускает telegram-бота и организует его работу."""
 
     updater = Updater(tg_bot_token)
@@ -32,8 +33,12 @@ def run_telegram_bot(tg_bot_token, redis_client):
     conversation_handler = ConversationHandler(
         entry_points=[CommandHandler('start', handle_start_command)],
         states={
-            KEYBOARD: [CallbackQueryHandler(partial(handle_keyboard_request, redis_client=redis_client))],
-            ANSWER: [MessageHandler(Filters.text, partial(handle_solution_attempt, redis_client=redis_client))]
+            KEYBOARD: [
+                CallbackQueryHandler(partial(handle_keyboard_request, tasks=tasks, redis_client=redis_client))
+            ],
+            ANSWER: [
+                MessageHandler(Filters.text, partial(handle_solution_attempt, tasks=tasks, redis_client=redis_client))
+            ]
         },
         fallbacks=[CommandHandler('cancel', handle_cancel_command)]
     )
@@ -67,7 +72,7 @@ def get_keyboard_markup():
     return InlineKeyboardMarkup(keyboard)
 
 
-def handle_keyboard_request(update, context, redis_client):
+def handle_keyboard_request(update, context, tasks, redis_client):
     """Отвечает в telegram-чате на нажатие пользователем кнопки на клавиатуре."""
 
     buttons_handlers = {
@@ -75,10 +80,10 @@ def handle_keyboard_request(update, context, redis_client):
         'capitulation': handle_capitulation_request
     }
     update.callback_query.answer()
-    return buttons_handlers[update.callback_query.data](update, context, redis_client)
+    return buttons_handlers[update.callback_query.data](update, context, tasks, redis_client)
 
 
-def handle_new_question_request(update, context, redis_client):
+def handle_new_question_request(update, context, tasks, redis_client):
     """Отвечает в telegram-чате на нажатие пользователем кнопки «Новый вопрос»."""
 
     chat_id = update.effective_chat.id
@@ -91,7 +96,7 @@ def handle_new_question_request(update, context, redis_client):
     return ANSWER
 
 
-def handle_capitulation_request(update, context, redis_client):
+def handle_capitulation_request(update, context, tasks, redis_client):
     """Отвечает в telegram-чате на нажатие пользователем кнопки «Сдаться»."""
 
     chat_id = update.effective_chat.id
@@ -104,7 +109,7 @@ def handle_capitulation_request(update, context, redis_client):
     return handle_new_question_request(update, context, redis_client)
 
 
-def handle_solution_attempt(update, context, redis_client):
+def handle_solution_attempt(update, context, tasks, redis_client):
     """Отвечает в telegram-чате на сообщение пользователя."""
 
     chat_id = update.effective_chat.id
@@ -121,6 +126,8 @@ def handle_solution_attempt(update, context, redis_client):
 
 
 def handle_cancel_command(update, context):
+    """Обрабатывает ввод пользователем команды /cancel в telegram-чате."""
+
     update.message.reply_text(
         f'До свидания, {update.message.from_user.first_name}!',
         reply_markup=ReplyKeyboardRemove()
@@ -129,11 +136,16 @@ def handle_cancel_command(update, context):
 
 
 def handle_error(update, context, error):
+    """Обрабатывает возникающие ошибки."""
+
     logger.warning(f'Update "{update}" вызвал ошибку "{error}"')
 
 
 def main():
     """Выполняет подготовительные операции и вызывает запуск telegram-бота."""
+
+    options = create_parser('Запускает и организует викторину в telegram-чате.').parse_args()
+    tasks = generate_tasks_from_files(options.quiz_folder)
 
     load_dotenv()
     tg_bot_token = os.environ['TELEGRAM_BOT_TOKEN']
@@ -150,9 +162,8 @@ def main():
         decode_responses=True
     )
 
-    run_telegram_bot(tg_bot_token, redis_client)
+    run_telegram_bot(tg_bot_token, tasks, redis_client)
 
 
 if __name__ == '__main__':
-    tasks = generate_tasks_from_files()
     main()

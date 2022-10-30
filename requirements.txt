@@ -1,4 +1,5 @@
 python-dotenv==0.21.*
+ConfigArgParse==1.5.3
+redis==4.3.4
 python-telegram-bot==13.*
 vk-api==11.8.0
-redis==4.3.4

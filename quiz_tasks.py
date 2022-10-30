@@ -1,20 +1,17 @@
 # coding=utf-8
 
-"""Формирует словарь из файлов с вопросами и ответами викторины."""
+"""Функции для работы с вопросами и ответами викторины."""
 
 import os
 from collections import namedtuple
 
 
-QUIZ_FOLDER = 'quiz_questions'
-
-
-def generate_tasks_from_files():
+def generate_tasks_from_files(quiz_folder):
     """Формирует словарь из файлов с вопросами и ответами викторины."""
 
     tasks = []
-    for quiz_filename in os.listdir(QUIZ_FOLDER):
-        with open(os.path.join(QUIZ_FOLDER, quiz_filename), 'r', encoding='KOI8-R') as quiz_file:
+    for quiz_filename in os.listdir(quiz_folder):
+        with open(os.path.join(quiz_folder, quiz_filename), 'r', encoding='KOI8-R') as quiz_file:
             texts = quiz_file.read().split('\n\n')
 
         file_tasks = generate_tasks_from_texts(texts)
@@ -56,10 +53,3 @@ def get_answer_comment(user_answer, proper_answer):
         return 'Правильно! Поздравляю! Для следующего вопроса нажми «Новый вопрос»'
 
     return 'Неправильно… Попробуешь ещё раз?'
-
-def main():
-    tasks = generate_tasks_from_files()
-
-
-if __name__ == '__main__':
-    main()
